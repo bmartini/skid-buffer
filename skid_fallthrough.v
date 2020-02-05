@@ -71,6 +71,103 @@ module skid_fallthrough
     assign dn_active = ~dn_val | dn_rdy;
 
 
+
+`ifdef FORMAL
+
+    initial begin
+        // ensure reset is triggered at the start
+        assume(rst == 1);
+    end
+
+
+    //
+    // Check the proper relationship between interface bus signals
+    //
+
+
+    // fifo holds data steady when not popping (not true for all fifos)
+    always @(posedge clk)
+        if ( ~rst && $past(fifo_val && ~fifo_pop)) begin
+            assume($stable(fifo_data));
+        end
+
+
+    // fifo empty will not rise unless data has been popped
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $rose(fifo_empty)) begin
+            assume($past(fifo_pop));
+        end
+
+
+    // dn stream path holds data steady when stalled
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && ~dn_rdy)) begin
+            assert($stable(dn_bus));
+        end
+
+
+    // dn stream path will only release data after a transaction
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $fell(dn_val)) begin
+            assert($past(dn_rdy));
+        end
+
+
+    //
+    // Check that the down data is sourced from correct locations
+    //
+
+    // dn stream data sourced from up stream data
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && dn_rdy && fifo_pop)) begin
+            assert(dn_bus == $past(fifo_data));
+        end
+
+
+    // dn stream data sourced from skid register
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && dn_rdy && ~fifo_pop)) begin
+            assert(dn_bus == $past(skid_data));
+        end
+
+
+    //
+    // Check that the valid fifo data is always stored somewhere
+    //
+
+    // valid fifo data is passed to dn register when dn is not stalled
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst && fifo_val && fifo_pop && ~dn_val)) begin
+            assert(($past(fifo_data) == dn_bus) && dn_val);
+        end
+
+
+    // valid fifo data is passed to skid register when dn is stalled
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst && fifo_val && fifo_pop && dn_val && ~dn_rdy)) begin
+            assert(($past(fifo_data) == skid_data) && dn_val);
+        end
+
+
+    //
+    // Check that the skid register does not drop data
+    //
+
+    // skid register held steady when back pressure is being applied to fifo
+    always @(posedge clk)
+        if ( ~rst && $past( ~fifo_pop)) begin
+            assert($stable(skid_data));
+        end
+
+
+    // skid register holds last up stream value when back pressure is applied to fifo
+    always @(posedge clk)
+        if ( ~rst && $fell(fifo_pop)) begin
+            assert(skid_data == $past(fifo_data));
+        end
+
+
+`endif
 endmodule
 
 `default_nettype wire
