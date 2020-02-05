@@ -55,7 +55,8 @@ module skid_fallthrough
 
     // when down stream is active, pop upstream fifo
     always @(posedge clk)
-        fifo_pop <= dn_active;
+        if (rst)    fifo_pop <= 1'b0;
+        else        fifo_pop <= dn_active;
 
 
     always @(posedge clk)
