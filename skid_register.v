@@ -45,9 +45,11 @@ module skid_register
     assign dn_val_i = up_rdy ? up_val : skid_val;
 
 
-    // when down stream is active, set upstream to ready
+    // when down stream is ready or up stream has valid data, set upstream
+    // ready to high if the modules 'down' pipeline is not stalled
     always @(posedge clk)
-        up_rdy <= dn_active;
+        if      (rst)               up_rdy <= 1'b0;
+        else if (dn_rdy | up_val)   up_rdy <= dn_active;
 
 
     always @(posedge clk)
@@ -73,7 +75,7 @@ module skid_register
 
 
     //
-    // Check the proper relationship between valid flag and data
+    // Check the proper relationship between interface bus signals
     //
 
     // up stream path holds data steady when stalled
@@ -83,10 +85,17 @@ module skid_register
         end
 
 
-    // up stream path will only release data after a transaction
+    // up stream path will only lower valid after a transaction
     always @(posedge clk)
         if ( ~rst && $past( ~rst) && $fell(up_val)) begin
             assume($past(up_rdy));
+        end
+
+
+    // up stream path will only lower ready after a transaction
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $fell(up_rdy)) begin
+            assert($past(up_val));
         end
 
 
@@ -97,10 +106,17 @@ module skid_register
         end
 
 
-    // dn stream path will only release data after a transaction
+    // dn stream path will only lower valid after a transaction
     always @(posedge clk)
         if ( ~rst && $past( ~rst) && $fell(dn_val)) begin
             assert($past(dn_rdy));
+        end
+
+
+    // dn stream path will only lower ready after a transaction
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $fell(dn_rdy)) begin
+            assume($past(dn_val));
         end
 
 
