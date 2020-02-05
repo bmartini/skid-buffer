@@ -63,6 +63,102 @@ module skid_register
     assign dn_active = ~dn_val | dn_rdy;
 
 
+
+`ifdef FORMAL
+
+    initial begin
+        // ensure reset is triggered at the start
+        assume(rst == 1);
+    end
+
+
+    //
+    // Check the proper relationship between valid flag and data
+    //
+
+    // up stream path holds data steady when stalled
+    always @(posedge clk)
+        if ( ~rst && $past(up_val && ~up_rdy)) begin
+            assume($stable(up_bus));
+        end
+
+
+    // up stream path will only release data after a transaction
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $fell(up_val)) begin
+            assume($past(up_rdy));
+        end
+
+
+    // dn stream path holds data steady when stalled
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && ~dn_rdy)) begin
+            assert($stable(dn_bus));
+        end
+
+
+    // dn stream path will only release data after a transaction
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst) && $fell(dn_val)) begin
+            assert($past(dn_rdy));
+        end
+
+
+    //
+    // Check that the down data is sourced from correct locations
+    //
+
+    // dn stream data sourced from up stream data
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && dn_rdy && up_rdy)) begin
+            assert(dn_bus == $past(up_bus));
+        end
+
+
+    // dn stream data sourced from skid register
+    always @(posedge clk)
+        if ( ~rst && $past(dn_val && dn_rdy && ~up_rdy)) begin
+            assert(dn_bus == $past(skid_bus));
+        end
+
+
+    //
+    // Check that the valid up data is always stored somewhere
+    //
+
+    // valid up stream data is passed to dn register when dn is not stalled
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst && up_val && up_rdy && ~dn_val)) begin
+            assert(($past(up_bus) == dn_bus) && dn_val);
+        end
+
+
+    // valid up stream data is passed to skid register when dn is stalled
+    always @(posedge clk)
+        if ( ~rst && $past( ~rst && up_val && up_rdy && dn_val && ~dn_rdy)) begin
+            assert(($past(up_bus) == skid_bus) && dn_val);
+        end
+
+
+    //
+    // Check that the skid register does not drop data
+    //
+
+    // skid register held steady when back pressure is being applied to up stream
+    always @(posedge clk)
+        if ( ~rst && $past( ~up_rdy)) begin
+            assert($stable(skid_bus));
+        end
+
+
+    // skid register holds last up stream value when back pressure is applied to up stream
+    always @(posedge clk)
+        if ( ~rst && $fell(up_rdy)) begin
+            assert(skid_bus == $past(up_bus));
+        end
+
+
+`endif
 endmodule
 
 `default_nettype wire

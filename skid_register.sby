@@ -1,0 +1,13 @@
+[options]
+mode bmc
+mode prove
+
+[engines]
+smtbmc
+
+[script]
+read -formal skid_register.v
+prep -top skid_register
+
+[files]
+skid_register.v
